@@ -7,6 +7,8 @@ import numpy, pandas
 
 # User Class Imports.
 from resources import logging
+import neural_net
+
 
 # Initialize logging.
 logger = logging.get_logger(__name__)
@@ -14,63 +16,67 @@ logger = logging.get_logger(__name__)
 
 # Load in CSV.
 housing_data = pandas.read_csv('./Documents/boston_housing.csv')
-logger.info('CSV Data:\n{0}\n'.format(housing_data.head()))
+# logger.info('CSV Data:\n{0}\n'.format(housing_data.head()))
 
 # Randomize arrangement of data to get more useful samples.
 randomized_data = housing_data.iloc[numpy.random.permutation(len(housing_data))]
-logger.info('Randomized Data:\n{0}\n'.format(randomized_data.head()))
+# logger.info('Randomized Data:\n{0}\n'.format(randomized_data.head()))
 
 # Separate columns into "features" and "targets".
 features = randomized_data.loc[:, randomized_data.columns != 'medv']
 targets = randomized_data['medv']
-logger.info('Separated column data:')
-logger.info(features.head())
-logger.info(targets.head())
+# logger.info('Separated column data:')
+# logger.info(features.head())
+# logger.info(targets.head())
+
+# Get target median.
+target_median = targets.median()
+# logger.info('Target Median: {0}'.format(target_median))
+
+# Experimenting with columns.
+# logger.info('Columns: ')
+# logger.info(randomized_data.columns)
+# logger.info('Col Length: {0}\n'.format(len(randomized_data.columns)))
 
 
-class Perceptron(object):
-    def __init__(self):
-        """
-        Create and initialize a new Perceptron object.
-        """
-        pass
+# To simplify things, only work with two features for now.
+# features = features.loc[:, features.columns != 'zn']
+# features = features.loc[:, features.columns != 'indus']
+# features = features.loc[:, features.columns != 'chas']
+# features = features.loc[:, features.columns != 'nox']
+# features = features.loc[:, features.columns != 'rm']
+# features = features.loc[:, features.columns != 'dis']
+# features = features.loc[:, features.columns != 'rad']
+# features = features.loc[:, features.columns != 'tax']
+# features = features.loc[:, features.columns != 'ptratio']
+# features = features.loc[:, features.columns != 'b']
+# features = features.loc[:, features.columns != 'lstat']
+# logger.info(features.columns)
 
-    def predict(self, x):
-        """
-        Predict the class of sample x. (Forward pass)
-        """
-        pass
 
-    def _delta(self, y_hat, y):
-        """
-        Given predictions y_hat and targets y, calculate the weight update delta.
-        """
-        pass
 
-    def _update_weights(delta):
-        """
-        Update the weights by delta.
-        """
-        pass
 
-    def _train_step(self, x, y):
-        """
-        Perform one training step:
-            - Predict.
-            - Calculate delta.
-            - Update weights.
-        Returns the predictions y_hat.
-        """
-        y_hat = self.predict(x)
-        delta = self._delta(y_hat, y)
-        self._update_weights(delta)
-        return y_hat
 
-    def train(self, train_x, train_y, num_steps):
-        """
-        Train the perceptron, performing num_steps weight updates.
-        """
-        pass
+# Start and use perceptron.
+logger.info('Starting Perceptron\n')
+perceptron = neural_net.Perceptron()
+perceptron.initialize_weights(features)
+perceptron.get_target_median(target_median)
+
+# sample_features = features[5:20]
+# logger.info(sample_features)
+# sample_targets = targets[5:20]
+# logger.info(sample_targets)
+
+
+training_features = features[0:400]
+training_targets = targets[0:400]
+testing_features = features[401:506]
+testing_targets = targets[401:506]
+
+perceptron.train(training_features.values, training_targets.values, 10)
+perceptron.predict(testing_features.values, testing_targets.values)
+# perceptron.predict(sample_features.values)
 
 
 logger.info('Exiting program.\n\n')
