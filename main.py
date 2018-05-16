@@ -35,13 +35,12 @@ perceptron.initialize_weights(features)
 perceptron.get_target_median(target_median)
 
 # Grab training/testing sets.
-training_features = features[0:450]
-training_targets = targets[0:450]
+training_data = randomized_data[0:450]
 testing_features = features[451:506]
 testing_targets = targets[451:506]
 
 # Train and predict appropriate sets.
-perceptron.train(training_features.values, training_targets.values, 10)
-perceptron.predict(testing_features.values, testing_targets.values)
+perceptron.train(training_data, 10)
+perceptron.predict(testing_features.values, target=testing_targets.values)
 
-logger.info('Exiting program.\n\n')
+logger.info('Exiting program.')

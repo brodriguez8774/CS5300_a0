@@ -3,7 +3,7 @@ Neural Net logic.
 """
 
 # System Imports.
-import math
+import math, numpy
 
 # User Class Imports.
 from resources import logging
@@ -17,7 +17,6 @@ class Perceptron(object):
     """
     Perceptron object. Acts as neural net.
     """
-
     def __init__(self):
         """
         Create and initialize a new Perceptron object.
@@ -26,6 +25,7 @@ class Perceptron(object):
         self.weights = None
         self.bias = -10
         self.target_median = None
+        self.total_errors = None
 
     def initialize_weights(self, data):
         self.weights = []
@@ -65,48 +65,82 @@ class Perceptron(object):
             binary_targets = self._convert_to_binary_result(target)
             self._determine_error_margin(binary_results, binary_targets)
 
-
         return full_set
 
-    def train(self, train_x, train_y, num_steps):
+    def train(self, training_data, num_steps):
         """
         Train the perceptron, performing num_steps weight updates.
-        :param train_x: Feature training data.
-        :param train_y: Result training data.
+        :param training_data: Data to train on. Includes both features and targets.
         :param num_steps: Number of iterations to update weights with.
         :return:
         """
-        # First determine number of items per training set.
-        total_set_count = len(train_x)
+        # Determine number of items per training set.
+        total_set_count = len(training_data)
         sets_per_step = total_set_count / num_steps
         logger.info('Number of Steps: {0}'.format(num_steps))
         logger.info('Total Set Count: {0}   Sets per Step: {1}'.format(total_set_count, sets_per_step))
 
-        # Iterate through sets and train perceptron accordingly.
-        curr_index = 0
-        high_index = 0
-        while high_index < (total_set_count - 1):
-            high_index += sets_per_step
+        # Create result tracker class. Trains perceptron until no further improvement is found.
+        tracker = ResultTracker()
 
-            # Check that we don't exceed the max index.
-            if high_index >= total_set_count:
-                high_index = (total_set_count - 1)
+        while tracker.continue_training_check():
+            # Randomize so that every training iteration uses differently organized data.
+            randomized_data = training_data.iloc[numpy.random.permutation(len(training_data))]
+            train_x = randomized_data.loc[:, randomized_data.columns != 'medv'].values
+            train_y = randomized_data['medv'].values
 
-            # Train on the given sets.
-            error_margin = 100
-            sample_features = train_x[curr_index: math.floor(high_index)]
-            sample_targets = train_y[curr_index: math.floor(high_index)]
-            binary_targets = self._convert_to_binary_result(sample_targets)
+            # Iterate through sets and train perceptron accordingly.
+            curr_index = 0
+            high_index = 0
+            self.total_errors = 0
+            total_sets = 0
+            while high_index < (total_set_count - 1):
+                high_index += sets_per_step
 
-            while error_margin > 30:
-                results = self._train_step(sample_features, sample_targets)
+                # Check that we don't exceed the max index.
+                if high_index >= total_set_count:
+                    high_index = (total_set_count - 1)
 
-                binary_results = self._convert_to_binary_result(results)
+                # Train on the given sets.
+                error_margin = 100
+                set_iterations = 0
+                sample_features = train_x[curr_index: math.floor(high_index)]
+                sample_targets = train_y[curr_index: math.floor(high_index)]
+                binary_targets = self._convert_to_binary_result(sample_targets)
 
-                # Calculate the error margin.
-                error_margin = self._determine_error_margin(binary_results, binary_targets, training=True)
+                while error_margin > 30 and set_iterations < 1000:
+                    results = self._train_step(sample_features, sample_targets)
 
-            curr_index = math.ceil(high_index)
+                    binary_results = self._convert_to_binary_result(results)
+
+                    # Calculate the error margin.
+                    error_margin = self._determine_error_margin(binary_results, binary_targets, training=True)
+                    total_sets += len(results)
+
+                    # Keep track of number of times through given set.
+                    # On occasion, randomized training data is bad and a "good" result is never found.
+                    # This prevents locking up in such an instance.
+                    set_iterations += 1
+
+                curr_index = math.ceil(high_index)
+
+            total_error_margin = ((self.total_errors / total_sets) * 100)
+            logger.info('Total Errors: {0}   Total Sets {1}   Error Margin: {2}'
+                        .format(self.total_errors, total_sets, total_error_margin))
+            tracker.add_iteration(self.weights, total_error_margin)
+
+        # In case the last iterations had worse results, grab best weights held by tracker.
+        self.weights = tracker.iterations[tracker.best_iteration_index][0]
+        best_error_margin = tracker.iterations[tracker.best_iteration_index][1]
+        logger.info('')
+        logger.info('Training Complete.')
+        logger.info('Total Iterations: {0}'.format(len(tracker.iterations) - 1))
+        logger.info(
+            'Best Error Margin on Training Data was {0}% at iteration {1}.'
+                .format(best_error_margin, tracker.best_iteration_index))
+        logger.info('That means an accuracy of {0}%'.format(100 - best_error_margin))
+        logger.info('Weights for said margin are {0}.'.format(self.weights))
+        logger.info('')
 
     def _train_step(self, x, y):
         """
@@ -117,16 +151,16 @@ class Perceptron(object):
         :return: The predictions y_hat.
         """
         y_hat = self.predict(x)
-        logger.info('Training Step Data:')
-        logger.info('Feature Calcs: {0}'.format(y_hat))
-        logger.info('Target Calcs:  {0}'.format(y))
+        # logger.info('Training Step Data:')
+        # logger.info('Feature Calcs: {0}'.format(y_hat))
+        # logger.info('Target Calcs:  {0}'.format(y))
 
         # Calculate binary of values and compare against targets.
         binary_results = self._convert_to_binary_result(y_hat)
         binary_targets = self._convert_to_binary_result(y)
 
         delta = self._delta(x, binary_results, binary_targets)
-        logger.info('Delta: {0}'.format(delta))
+        # logger.info('Delta: {0}'.format(delta))
         self._update_weights(delta)
         return y_hat
 
@@ -163,11 +197,11 @@ class Perceptron(object):
         Update the weights by delta.
         """
         index = 0
-        logger.info('Old Weights: {0}'.format(self.weights))
+        # logger.info('Old Weights: {0}'.format(self.weights))
         while index < len(delta):
             self.weights[index] += delta[index]
             index += 1
-        logger.info('New Weights: {0}'.format(self.weights))
+        # logger.info('New Weights: {0}'.format(self.weights))
 
     def _convert_to_binary_result(self, result_array):
         """
@@ -183,7 +217,7 @@ class Perceptron(object):
                 binary_result.append(0)
         return binary_result
 
-    def _determine_error_margin(self, results, targets, training=False):
+    def _determine_error_margin(self, results, targets, training=False, total=False):
         """
         Determines error margin of given values.
         :param results: Binary array of results.
@@ -200,10 +234,57 @@ class Perceptron(object):
             index += 1
         error_margin = (error_count / len(results) * 100)
         if training:
-            logger.info('Training   | {0} predictions incorrect out of {1}. Error margin of {2}%'
-                        .format(error_count, len(results), error_margin))
+            pass
+            # logger.info('Training   | {0} predictions incorrect out of {1}. Error margin of {2}%'
+            #             .format(error_count, len(results), error_margin))
         else:
             logger.info('Predicting | {0} predictions incorrect out of {1}. Error margin of {2}%'
                         .format(error_count, len(results), error_margin))
+            logger.info('')
 
+        self.total_errors += error_count
         return error_margin
+
+
+class ResultTracker():
+    """
+    Result tracker class. Tracks progress of perceptron.
+    """
+    def __init__(self):
+        self.iterations = []
+        self.best_iteration_index = 0
+
+    def add_iteration(self, weights, error_margin):
+        """
+        Adds a new set of results to track.
+        :param weights: Weights of current iteration.
+        :param error_margin: Error margin of current iteration.
+        """
+        new_iteration = [weights, error_margin]
+        self.iterations.append(new_iteration)
+        logger.info('Iteration {0}: {1}'.format(len(self.iterations) - 1, new_iteration))
+
+        logger.info('Previous Best: {0}   New Value: {1}'
+                    .format(self.iterations[self.best_iteration_index][1], error_margin))
+
+        # Calculate best iteration thus far. Based on total error margin.
+        if error_margin < self.iterations[self.best_iteration_index][1]:
+            # logger.info('New margin has performed better. Setting new best.')
+            self.best_iteration_index = len(self.iterations) - 1
+
+    def continue_training_check(self):
+        """
+        Determines if perceptron should continue training.
+        :return: True on continued training. False on training complete.
+        """
+        total_iterations = len(self.iterations)
+
+        # Make perceptron iterate at least 10 times.
+        if total_iterations <= 10:
+            return True
+
+        # Check if perceptron is still improving. Continue if progress has made in last 5 iterations.
+        if self.best_iteration_index > (total_iterations - 5):
+            return True
+
+        return False
