@@ -53,29 +53,18 @@ class Perceptron(object):
             # Iterate through all columns in instance. Should result with single value for instance.
             for column in sample[instance_index]:
                 # logger.info('Current Col: {0}'.format(column))
-                indiv_set += column * self.weights[col_index]
+                indiv_set += (column * self.weights[col_index])
                 col_index += 1
 
-            if indiv_set > self.target_median:
-                full_set.append(1)
-            else:
-                full_set.append(0)
+            full_set.append(indiv_set)
             instance_index += 1
 
+        # Calculate the error margin if not a test prediction.
         if target is not None:
-            # Calculate the error margin.
-            index = 0
-            error_count = 0
-            while index < len(full_set):
-                if target[index] > self.target_median:
-                    target_value = 0
-                else:
-                    target_value = 1
-                if full_set[index] != target_value:
-                    error_count += 1
-                index += 1
-            logger.info('Testing: {0} predictions incorrect out of {1}. Error margin of {2}%'
-                        .format(error_count, len(full_set), (error_count / len(full_set) * 100)))
+            binary_results = self._convert_to_binary_result(full_set)
+            binary_targets = self._convert_to_binary_result(target)
+            self._determine_error_margin(binary_results, binary_targets)
+
 
         return full_set
 
@@ -87,10 +76,10 @@ class Perceptron(object):
         :param num_steps: Number of iterations to update weights with.
         :return:
         """
-        logger.info('Number of Steps: {0}'.format(num_steps))
         # First determine number of items per training set.
         total_set_count = len(train_x)
         sets_per_step = total_set_count / num_steps
+        logger.info('Number of Steps: {0}'.format(num_steps))
         logger.info('Total Set Count: {0}   Sets per Step: {1}'.format(total_set_count, sets_per_step))
 
         # Iterate through sets and train perceptron accordingly.
@@ -104,27 +93,20 @@ class Perceptron(object):
                 high_index = (total_set_count - 1)
 
             # Train on the given sets.
-            # logger.info('Set from {0} to {1}'.format(curr_index, math.floor(high_index)))
-            sample_features = train_x[curr_index : math.floor(high_index)]
-            sample_targets = train_y[curr_index : math.floor(high_index)]
-            results = self._train_step(sample_features, sample_targets)
+            error_margin = 100
+            sample_features = train_x[curr_index: math.floor(high_index)]
+            sample_targets = train_y[curr_index: math.floor(high_index)]
+            binary_targets = self._convert_to_binary_result(sample_targets)
+
+            while error_margin > 30:
+                results = self._train_step(sample_features, sample_targets)
+
+                binary_results = self._convert_to_binary_result(results)
+
+                # Calculate the error margin.
+                error_margin = self._determine_error_margin(binary_results, binary_targets, training=True)
 
             curr_index = math.ceil(high_index)
-
-            # Calculate the error margin.
-            index = 0
-            error_count = 0
-            while index < len(results):
-                if sample_targets[index] > self.target_median:
-                    target_value = 0
-                else:
-                    target_value = 1
-                if results[index] != target_value:
-                    error_count += 1
-                index += 1
-            logger.info('Training: {0} predictions incorrect out of {1}. Error margin of {2}%'
-                        .format(error_count, len(results), (error_count / len(results) * 100)))
-
 
     def _train_step(self, x, y):
         """
@@ -135,33 +117,93 @@ class Perceptron(object):
         :return: The predictions y_hat.
         """
         y_hat = self.predict(x)
-        delta = self._delta(y_hat, y)
+        logger.info('Training Step Data:')
+        logger.info('Feature Calcs: {0}'.format(y_hat))
+        logger.info('Target Calcs:  {0}'.format(y))
+
+        # Calculate binary of values and compare against targets.
+        binary_results = self._convert_to_binary_result(y_hat)
+        binary_targets = self._convert_to_binary_result(y)
+
+        delta = self._delta(x, binary_results, binary_targets)
+        logger.info('Delta: {0}'.format(delta))
         self._update_weights(delta)
         return y_hat
 
-    def _delta(self, results, target):
+    def _delta(self, features, results, target):
         """
         Given prediction results (y_hat) and targets (y), calculate the weight update delta.
-        Delta is equal to: (result - target)^2
         """
+        row_index = 0
+        delta = []
+        for weight in self.weights:
+            delta.append(0)
+
+        # Iterate through all rows in features.
+        for set in features:
+            weight_index = 0
+            # Iterate through all weights in delta.
+            for weight in delta:
+                # logger.info('Before | Weight {0}: {1}   Result Value: {2}   Target Value: {3}'.format(weight_index, delta[weight_index], results[row_index], target[row_index]))
+                delta[weight_index] += ((target[row_index] - results[row_index]) * set[weight_index])
+                # logger.info('After  | Weight {0}: {1}   Result Value: {2}   Target Value: {3}'.format(weight_index, delta[weight_index], results[row_index], target[row_index]))
+                weight_index += 1
+            row_index += 1
+
+        # Average out delta values.
         index = 0
-        delta = 0
-        while index < len(results):
-            if target[index] > self.target_median:
-                target_median = 0
-            else:
-                target_median = 1
-            delta += ((results[index] - target_median) ** 2)
+        while index < len(delta):
+            delta[index] = delta[index] / len(features)
             index += 1
-        # delta = (delta / len(results))
-        # logger.info('Delta: {0}'.format(delta))
+
         return delta
 
     def _update_weights(self, delta):
         """
         Update the weights by delta.
         """
-        # TODO: This seems way to simple to be correct.
-        # TODO: How do you update each weight individually? There's only one delta.
-        for weight in self.weights:
-            weight += delta
+        index = 0
+        logger.info('Old Weights: {0}'.format(self.weights))
+        while index < len(delta):
+            self.weights[index] += delta[index]
+            index += 1
+        logger.info('New Weights: {0}'.format(self.weights))
+
+    def _convert_to_binary_result(self, result_array):
+        """
+        Converts the given result array to 1's or 0's, based on if it's above or below median value.
+        :param result_array: Array of data to convert to binary.
+        :return: Binary version of array.
+        """
+        binary_result = []
+        for result in result_array:
+            if result > self.target_median:
+                binary_result.append(1)
+            else:
+                binary_result.append(0)
+        return binary_result
+
+    def _determine_error_margin(self, results, targets, training=False):
+        """
+        Determines error margin of given values.
+        :param results: Binary array of results.
+        :param targets: Binary array of targets.
+        :param training: Boolean to change output.
+        :return: Current error margin.
+        """
+        # Calculate the error margin.
+        index = 0
+        error_count = 0
+        while index < len(results):
+            if results[index] != targets[index]:
+                error_count += 1
+            index += 1
+        error_margin = (error_count / len(results) * 100)
+        if training:
+            logger.info('Training   | {0} predictions incorrect out of {1}. Error margin of {2}%'
+                        .format(error_count, len(results), error_margin))
+        else:
+            logger.info('Predicting | {0} predictions incorrect out of {1}. Error margin of {2}%'
+                        .format(error_count, len(results), error_margin))
+
+        return error_margin
