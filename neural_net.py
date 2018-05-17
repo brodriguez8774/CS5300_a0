@@ -62,7 +62,7 @@ class Perceptron(object):
         if target is not None:
             binary_results = self._convert_to_binary_result(full_set)
             binary_targets = self._convert_to_binary_result(target)
-            self._determine_error_margin(binary_results, binary_targets)
+            return (100 - self._determine_error_margin(binary_results, binary_targets))
 
         return full_set
 
@@ -124,22 +124,24 @@ class Perceptron(object):
                 curr_index = math.ceil(high_index)
 
             total_error_margin = ((self.total_errors / total_sets) * 100)
-            logger.info('Total Errors: {0}   Total Sets {1}   Error Margin: {2}'
-                        .format(self.total_errors, total_sets, total_error_margin))
+            # logger.info('Total Errors: {0}   Total Sets {1}   Error Margin: {2}'
+            #             .format(self.total_errors, total_sets, total_error_margin))
             tracker.add_iteration(self.weights, total_error_margin)
 
         # In case the last iterations had worse results, grab best weights held by tracker.
         self.weights = tracker.iterations[tracker.best_iteration_index][0]
         best_error_margin = tracker.iterations[tracker.best_iteration_index][1]
-        logger.info('')
-        logger.info('Training Complete.')
-        logger.info('Total Iterations: {0}'.format(len(tracker.iterations) - 1))
-        logger.info(
-            'Best Error Margin on Training Data was {0}% at iteration {1}.'
-                .format(best_error_margin, tracker.best_iteration_index))
-        logger.info('That means an accuracy of {0}%'.format(100 - best_error_margin))
-        logger.info('Weights for said margin are {0}.'.format(self.weights))
-        logger.info('')
+        # logger.info('')
+        # logger.info('Training Complete.')
+        # logger.info('Total Iterations: {0}'.format(len(tracker.iterations) - 1))
+        # logger.info(
+        #     'Best Error Margin on Training Data was {0}% at iteration {1}.'
+        #         .format(best_error_margin, tracker.best_iteration_index))
+        # logger.info('That means an accuracy of {0}%'.format(100 - best_error_margin))
+        # logger.info('Weights for said margin are {0}.'.format(self.weights))
+        # logger.info('')
+
+        return [(100 - best_error_margin), len(tracker.iterations)]
 
     def _train_step(self, x, y):
         """
@@ -229,13 +231,13 @@ class Perceptron(object):
                 error_count += 1
             index += 1
         error_margin = (error_count / len(results) * 100)
-        if not training:
-            logger.info('Predicting...')
-            logger.info('{0} predictions incorrect out of {1}. Error margin of {2}%'
-                    .format(error_count, len(results), error_margin))
-            logger.info('That means an accuracy of {0}%'.format(100 - error_margin))
-            logger.info('Weights for said margin are {0}.'.format(self.weights))
-            logger.info('')
+        # if not training:
+        #     logger.info('Predicting...')
+        #     logger.info('{0} predictions incorrect out of {1}. Error margin of {2}%'
+        #             .format(error_count, len(results), error_margin))
+        #     logger.info('That means an accuracy of {0}%'.format(100 - error_margin))
+        #     logger.info('Weights for said margin are {0}.'.format(self.weights))
+        #     logger.info('')
 
         self.total_errors += error_count
         return error_margin
@@ -257,10 +259,10 @@ class ResultTracker():
         """
         new_iteration = [weights, error_margin]
         self.iterations.append(new_iteration)
-        logger.info('Iteration {0}: {1}'.format(len(self.iterations) - 1, new_iteration))
-
-        logger.info('Previous Best: {0}   New Value: {1}'
-                    .format(self.iterations[self.best_iteration_index][1], error_margin))
+        # logger.info('Iteration {0}: {1}'.format(len(self.iterations) - 1, new_iteration))
+        #
+        # logger.info('Previous Best: {0}   New Value: {1}'
+        #             .format(self.iterations[self.best_iteration_index][1], error_margin))
 
         # Calculate best iteration thus far. Based on total error margin.
         if error_margin < self.iterations[self.best_iteration_index][1]:
