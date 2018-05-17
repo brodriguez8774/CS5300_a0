@@ -31,28 +31,27 @@ class Perceptron(object):
         self.weights = []
         for column in data.columns:
             self.weights.append(1)
-        logger.info('Weights: {0}'.format(self.weights))
 
     def get_target_median(self, target_median):
         self.target_median = target_median
 
     def predict(self, sample, target=None):
         """
-        Predict the class of sample (x). (Forward pass)
+        Predict the class of sample (x).
+        :param sample: Sample data to predict from.
+        :param target: Optional target data to match to. If present, training is assumed.
+        :return: Array (vector) of predicted results.
         """
-        # logger.info('Starting prediction.')
         instance_index = 0
         full_set = []
 
         # Iterate through all instances.
         while instance_index != len(sample):
-            # logger.info('Current Set: {0}'.format(sample[instance_index]))
             col_index = 0
             indiv_set = self.bias
 
             # Iterate through all columns in instance. Should result with single value for instance.
             for column in sample[instance_index]:
-                # logger.info('Current Col: {0}'.format(column))
                 indiv_set += (column * self.weights[col_index])
                 col_index += 1
 
@@ -72,7 +71,6 @@ class Perceptron(object):
         Train the perceptron, performing num_steps weight updates.
         :param training_data: Data to train on. Includes both features and targets.
         :param num_steps: Number of iterations to update weights with.
-        :return:
         """
         # Determine number of items per training set.
         total_set_count = len(training_data)
@@ -108,6 +106,7 @@ class Perceptron(object):
                 sample_targets = train_y[curr_index: math.floor(high_index)]
                 binary_targets = self._convert_to_binary_result(sample_targets)
 
+                # Use current set until error margin is low or many iterations have occured.
                 while error_margin > 30 and set_iterations < 1000:
                     results = self._train_step(sample_features, sample_targets)
 
@@ -151,22 +150,22 @@ class Perceptron(object):
         :return: The predictions y_hat.
         """
         y_hat = self.predict(x)
-        # logger.info('Training Step Data:')
-        # logger.info('Feature Calcs: {0}'.format(y_hat))
-        # logger.info('Target Calcs:  {0}'.format(y))
 
         # Calculate binary of values and compare against targets.
         binary_results = self._convert_to_binary_result(y_hat)
         binary_targets = self._convert_to_binary_result(y)
 
         delta = self._delta(x, binary_results, binary_targets)
-        # logger.info('Delta: {0}'.format(delta))
         self._update_weights(delta)
         return y_hat
 
     def _delta(self, features, results, target):
         """
         Given prediction results (y_hat) and targets (y), calculate the weight update delta.
+        :param features: Initial features used in prediction.
+        :param results: Prediction results, converted to binary.
+        :param target: Expected target, converted to binary.
+        :return: Full delta to update weights with.
         """
         row_index = 0
         delta = []
@@ -178,9 +177,7 @@ class Perceptron(object):
             weight_index = 0
             # Iterate through all weights in delta.
             for weight in delta:
-                # logger.info('Before | Weight {0}: {1}   Result Value: {2}   Target Value: {3}'.format(weight_index, delta[weight_index], results[row_index], target[row_index]))
                 delta[weight_index] += ((target[row_index] - results[row_index]) * set[weight_index])
-                # logger.info('After  | Weight {0}: {1}   Result Value: {2}   Target Value: {3}'.format(weight_index, delta[weight_index], results[row_index], target[row_index]))
                 weight_index += 1
             row_index += 1
 
@@ -195,13 +192,12 @@ class Perceptron(object):
     def _update_weights(self, delta):
         """
         Update the weights by delta.
+        :param delta: Weight update array (vector).
         """
         index = 0
-        # logger.info('Old Weights: {0}'.format(self.weights))
         while index < len(delta):
             self.weights[index] += delta[index]
             index += 1
-        # logger.info('New Weights: {0}'.format(self.weights))
 
     def _convert_to_binary_result(self, result_array):
         """
@@ -233,13 +229,12 @@ class Perceptron(object):
                 error_count += 1
             index += 1
         error_margin = (error_count / len(results) * 100)
-        if training:
-            pass
-            # logger.info('Training   | {0} predictions incorrect out of {1}. Error margin of {2}%'
-            #             .format(error_count, len(results), error_margin))
-        else:
-            logger.info('Predicting | {0} predictions incorrect out of {1}. Error margin of {2}%'
-                        .format(error_count, len(results), error_margin))
+        if not training:
+            logger.info('Predicting...')
+            logger.info('{0} predictions incorrect out of {1}. Error margin of {2}%'
+                    .format(error_count, len(results), error_margin))
+            logger.info('That means an accuracy of {0}%'.format(100 - error_margin))
+            logger.info('Weights for said margin are {0}.'.format(self.weights))
             logger.info('')
 
         self.total_errors += error_count
@@ -269,7 +264,6 @@ class ResultTracker():
 
         # Calculate best iteration thus far. Based on total error margin.
         if error_margin < self.iterations[self.best_iteration_index][1]:
-            # logger.info('New margin has performed better. Setting new best.')
             self.best_iteration_index = len(self.iterations) - 1
 
     def continue_training_check(self):
